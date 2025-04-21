@@ -1,50 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Timer, Thermometer, ArrowUp, Star, Sun, Moon, Share2, Globe, QrCode, Calendar, ArrowLeft, ArrowRight, Droplets, Wheat, Award } from 'lucide-react';
+import './BreweryApp.css';
 
-
-// Simulate Live Data
-const generateMockData = (timeOffset = 0) => {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - timeOffset);
-  const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  
-  return {
-    time: timeString,
-    temperature: Math.floor(65 + Math.sin(timeOffset / 10) * 5),
-    pressure: Math.floor(2 + Math.cos(timeOffset / 8) * 0.5),
-  };
-};
-
-// Generate Historical Data
-const generateHistoricalData = (process, day = 0) => {
-  const data = [];
-  const maxPoints = 24;
-  
-  for (let i = maxPoints; i >= 0; i--) {
-    const seed = i + (day * 17);
-    if (process === 'hopfenkochen') {
-      data.push({
-        time: `${i*15}min`,
-        temperature: Math.floor(95 + Math.sin(seed / 3) * 3),
-        pressure: Math.floor(1.5 + Math.cos(seed / 4) * 0.3),
-      });
-    } else if (process === 'maischen') {
-      data.push({
-        time: `${i*20}min`,
-        temperature: Math.floor(60 + Math.sin(seed / 2) * 15),
-        pressure: Math.floor(1 + Math.cos(seed / 3) * 0.4),
-      });
-    } else if (process === 'gaerung') {
-      data.push({
-        time: `${i*30}min`,
-        temperature: Math.floor(18 + Math.sin(seed / 5) * 2),
-        pressure: Math.floor(0.8 + Math.cos(seed / 6) * 0.2),
-      });
-    }
-  }
-  return data;
-};
 
 // QR-Code Component
 const QRCodeDisplay = () => {
@@ -79,13 +37,11 @@ const BeerGlass = ({ className }) => {
 
 // Main Component
 export default function BreweryApp() {
-  const [currentData, setCurrentData] = useState([]);
   const [selectedProcess, setSelectedProcess] = useState('live');
   const [historicalData, setHistoricalData] = useState([]);
   const [userRating, setUserRating] = useState(0);
   const [totalRatings, setTotalRatings] = useState(127);
   const [averageRating, setAverageRating] = useState(4.2);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [language, setLanguage] = useState('de');
   const [darkMode, setDarkMode] = useState(true);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -93,7 +49,9 @@ export default function BreweryApp() {
   const [showShareOptions, setShowShareOptions] = useState(false);
   const [notification, setNotification] = useState(null);
   const [animateHero, setAnimateHero] = useState(false);
-  
+  const [currentData, setCurrentData] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+
   const chartRef = useRef(null);
   
   // Text Translations
@@ -213,37 +171,47 @@ export default function BreweryApp() {
     awards: ["Vienna Beer Festival 2024", "European Beer Star 2023"]
   };
 
-  // Update Live Data every 5 seconds (simulated for demo)
+  const [liveData, setLiveData] = useState(null);
+
   useEffect(() => {
-    const initialData = [];
-    for (let i = 12; i >= 0; i--) {
-      initialData.push(generateMockData(i * 5));
-    }
-    setCurrentData(initialData);
-    
-    const interval = setInterval(() => {
-      setCurrentData(prevData => {
-        const newData = [...prevData.slice(1), generateMockData()];
+    const fetchLiveData = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/live');
+        const data = await response.json();
+        setCurrentData(data);
         setLastUpdated(new Date());
-        return newData;
-      });
-    }, 5000);
-    
+      } catch (error) {
+        console.error('Fehler beim Abrufen der Live-Daten:', error);
+      }
+    };
+
+    // Initial laden + dann alle 5 Sekunden aktualisieren
+    fetchLiveData();
+    const interval = setInterval(fetchLiveData, 5000);
     return () => clearInterval(interval);
   }, []);
-  
+
+  useEffect(() => {
+    if (selectedProcess === 'live') return;
+
+    const fetchHistoricData = async () => {
+      try {
+        const response = await fetch(`http://localhost:3001/api/historic/${selectedProcess}?day=${historicalDay}`);
+        const data = await response.json();
+        setHistoricalData(data);
+      } catch (error) {
+        console.error('Fehler beim Abrufen der historischen Daten:', error);
+      }
+    };
+
+    fetchHistoricData();
+  }, [selectedProcess, historicalDay]);
+
   // Hero Animation
   useEffect(() => {
     setAnimateHero(true);
   }, []);
-  
-  // Update Historical Data on Process Change
-  useEffect(() => {
-    if (selectedProcess !== 'live') {
-      setHistoricalData(generateHistoricalData(selectedProcess, historicalDay));
-    }
-  }, [selectedProcess, historicalDay]);
-  
+
   // Dark Mode Settings
   useEffect(() => {
     if (darkMode) {
@@ -361,347 +329,6 @@ export default function BreweryApp() {
 
   return (
     <div className={`flex flex-col min-h-screen ${theme.bgMain} transition-colors duration-500 overflow-hidden relative`}>
-      <style jsx>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;600&display=swap');
-
-        @keyframes pulse {
-          0% { opacity: 0.8; transform: scale(0.98); }
-          50% { opacity: 1; transform: scale(1.02); }
-          100% { opacity: 0.8; transform: scale(0.98); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeOut {
-          from { opacity: 1; transform: translateY(0); }
-          to { opacity: 0; transform: translateY(-20px); }
-        }
-        @keyframes rise {
-          0% { transform: translateY(0); opacity: 0.8; }
-          50% { transform: translateY(-100px); opacity: 0.4; }
-          100% { transform: translateY(-200px); opacity: 0; }
-        }
-        @keyframes foam {
-          0% { transform: translateY(0); }
-          50% { transform: translateY(2px); }
-          100% { transform: translateY(0); }
-        }
-        @keyframes shine {
-          0% { background-position: -100% 0; }
-          100% { background-position: 200% 0; }
-        }
-        
-        .pulse-animation {
-          animation: pulse 1s ease-in-out;
-        }
-        .dark-mode {
-          color-scheme: dark;
-        }
-        .beer-glass {
-          position: relative;
-          width: 100%;
-          max-width: 140px;
-          height: 280px;
-          border-radius: 16px 16px 12px 12px;
-          overflow: hidden;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.2), inset 0 0 10px rgba(255,255,255,0.1);
-          transform: perspective(1000px) rotateX(-5deg);
-          transition: transform 0.3s ease;
-        }
-        .beer-glass:hover {
-          transform: perspective(1000px) rotateX(0deg) scale(1.05);
-        }
-        .beer-foam {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 25%;
-          background: linear-gradient(to bottom, #fff 20%, #f5f5f4 100%);
-          border-radius: 16px 16px 0 0;
-          z-index: 1;
-          box-shadow: inset 0 -5px 15px -5px rgba(0,0,0,0.1);
-          animation: foam 6s infinite ease-in-out;
-        }
-        .beer-foam-bubble {
-          position: absolute;
-          background: rgba(255,255,255,0.9);
-          border-radius: 50%;
-          animation: foam 4s infinite ease-in-out;
-        }
-        .beer-foam-bubble-1 {
-          width: 20px;
-          height: 15px;
-          top: 15%;
-          left: 25%;
-          animation-delay: 0.2s;
-        }
-        .beer-foam-bubble-2 {
-          width: 15px;
-          height: 10px;
-          top: 30%;
-          left: 50%;
-          animation-delay: 0.5s;
-        }
-        .beer-foam-bubble-3 {
-          width: 25px;
-          height: 20px;
-          top: 20%;
-          right: 20%;
-          animation-delay: 0.8s;
-        }
-        .beer-liquid {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 100%;
-          height: 75%;
-          background: radial-gradient(circle at 50% 30%, #f59e0b 20%, #d97706 100%);
-          z-index: 0;
-          box-shadow: inset 0 -10px 30px -10px rgba(0,0,0,0.5);
-        }
-        .beer-bubble {
-          position: absolute;
-          bottom: 5%;
-          background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.9), rgba(255,255,255,0.3));
-          border-radius: 50%;
-          animation: rise 4s infinite ease-in;
-          box-shadow: 0 0 6px rgba(255,255,255,0.7);
-        }
-        .beer-bubble-1 { left: 15%; width: 10px; height: 10px; animation-delay: 0s; }
-        .beer-bubble-2 { left: 35%; width: 8px; height: 8px; animation-delay: 0.8s; }
-        .beer-bubble-3 { left: 55%; width: 6px; height: 6px; animation-delay: 1.2s; }
-        .beer-bubble-4 { left: 75%; width: 9px; height: 9px; animation-delay: 0.4s; }
-        .beer-bubble-5 { left: 25%; width: 7px; height: 7px; animation-delay: 1.6s; }
-        .beer-highlight {
-          position: absolute;
-          top: 10%;
-          left: 15%;
-          width: 40%;
-          height: 60%;
-          background: radial-gradient(ellipse at center, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
-          border-radius: 50%;
-          transform: rotate(-20deg);
-        }
-        .notification {
-          position: fixed;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 12px 20px;
-          background: rgba(0,0,0,0.8);
-          color: white;
-          border-radius: 8px;
-          z-index: 1000;
-          animation: fadeIn 0.3s, fadeOut 0.3s 2.7s;
-          backdrop-filter: blur(8px);
-        }
-        .grain-pattern {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d97706' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-          opacity: 0.6;
-          z-index: -1;
-        }
-        .hero-section {
-          position: relative;
-          min-height: 400px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          margin-bottom: 2rem;
-          border-radius: 0 0 30px 30px;
-          box-shadow: 0 10px 30px -5px rgba(0,0,0,0.2);
-        }
-        .hero-image {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          z-index: -1;
-          filter: brightness(0.7);
-          transform: scale(1.05);
-          transition: transform 10s ease-in-out;
-        }
-        .hero-section:hover .hero-image {
-          transform: scale(1.15);
-        }
-        .hero-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.9) 100%);
-          z-index: -1;
-        }
-        .hero-content {
-          text-align: center;
-          padding: 2rem;
-          max-width: 800px;
-          z-index: 1;
-          transition: all 1s ease-out;
-        }
-        .hero-content h1 {
-          text-shadow: 0 4px 8px rgba(0, 0, 0, 0.7);
-        }
-        .hero-content.animate {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        .cta-button {
-          margin-top: 2rem;
-          padding: 0.75rem 1.5rem;
-          font-size: 1.1rem;
-          font-weight: 600;
-          border-radius: 50px;
-          background: linear-gradient(to right, #d97706, #f59e0b);
-          color: white;
-          border: none;
-          box-shadow: 0 4px 15px rgba(217, 119, 6, 0.4);
-          cursor: pointer;
-          transition: all 0.3s ease;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          position: relative;
-          overflow: hidden;
-          font-family: 'Inter', sans-serif;
-        }
-        .cta-button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(217, 119, 6, 0.5);
-        }
-        .cta-button:after {
-          content: '';
-          position: absolute;
-          width: 30px;
-          height: 200px;
-          background: rgba(255,255,255,0.3);
-          top: -50%;
-          left: -100px;
-          transform: rotate(45deg);
-          transition: all 0.6s ease;
-        }
-        .cta-button:hover:after {
-          left: 120%;
-        }
-        .fade-in-section {
-          opacity: 0;
-          transform: translateY(30px);
-          transition: opacity 1s ease-out, transform 1s ease-out;
-        }
-        .fade-in-section.visible {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        .card-3d-effect {
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
-          border-radius: 16px;
-          overflow: hidden;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-          transform: perspective(1000px) rotateX(0) rotateY(0);
-        }
-        .card-3d-effect:hover {
-          transform: perspective(1000px) rotateX(2deg) rotateY(2deg);
-          box-shadow: 0 15px 35px rgba(0,0,0,0.2);
-        }
-        .glass-effect {
-          backdrop-filter: blur(10px);
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-        .section-title {
-          position: relative;
-          display: inline-block;
-          margin-bottom: 1.5rem;
-          padding-bottom: 0.5rem;
-          font-family: 'Playfair Display', serif;
-        }
-        .section-title:after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 60px;
-          height: 3px;
-          background: linear-gradient(to right, #d97706, #f59e0b);
-          border-radius: 3px;
-        }
-        .badge {
-          display: inline-flex;
-          align-items: center;
-          padding: 0.5rem 1rem;
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: white;
-          background: linear-gradient(to right, #d97706, #b45309);
-          border-radius: 50px;
-          box-shadow: 0 2px 10px rgba(217, 119, 6, 0.3);
-          margin: 0.5rem;
-          font-family: 'Inter', sans-serif;
-        }
-        .badge svg {
-          margin-right: 0.5rem;
-        }
-        .award-badge {
-          background: linear-gradient(to right, #f59e0b, #d97706);
-          color: white;
-          border-radius: 4px;
-          padding: 0.25rem 0.5rem;
-          font-size: 0.75rem;
-          font-weight: 600;
-          margin: 0.3rem;
-          display: inline-flex;
-          align-items: center;
-          font-family: 'Inter', sans-serif;
-        }
-        .award-badge svg {
-          margin-right: 0.25rem;
-        }
-        .chart-container:hover {
-          transform: scale(1.02);
-          transition: transform 0.3s ease;
-        }
-        .text-shadow {
-          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-        }
-        .header-container {
-          position: relative;
-          background-image: url('https://images.unsplash.com/photo-1571690412283-a0b0b3dc1521?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&h=200');
-          background-size: cover;
-          background-position: center;
-          background-blend-mode: overlay;
-          backdrop-filter: blur(10px);
-        }
-        .header-container::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: ${darkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)'};
-          z-index: 0;
-        }
-        .header-content {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem 1.5rem;
-        }
-      `}</style>
-      
       {/* Decorative Background Elements */}
       <div className="grain-pattern dark:opacity-20"></div>
       
